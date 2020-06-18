@@ -104,6 +104,17 @@ function prcgProgress2Link(project, run) {
 	return `<div><a href="./prcgProgress2?project=${project}&run=${run}">Details</a></div>`;
 }
 
+function abortedAlert(abortedCount) {
+	'use strict';
+	var entity = abortedCount > 1 ? 'trajectories' : 'trajectory';
+	return ` <svg class="bi bi-exclamation-triangle-fill" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"><title>${abortedCount} ${entity} aborted</title></path></svg>`;
+}
+
+function projectConfigText(projectId, data) {
+	'use strict';
+	return 'Project ' + projectId + ' has been configured to have ' + data.maxRuns + (data.maxRuns > 1 ? ' Runs' : ' Run') + ', each with ' + data.maxClonesPerRun + (data.maxClonesPerRun > 1 ? ' Clones' : ' Clone') + '. Each Clone has ' + data.maxGensPerClone + (data.maxGensPerClone > 1 ? ' Gens' : ' Gen') + ', resulting in ' + (data.maxRuns * data.maxClonesPerRun * data.maxGensPerClone) + ' potential WUs for the project. Each WU represents ' + data.trajLengthPerWU + ' nanoseconds of simulation.';
+}
+
 function prcgProgress() {
 	'use strict';
 	var urlParams = new URLSearchParams(window.location.search);
@@ -118,17 +129,23 @@ function prcgProgress() {
 		return;
 	}
 
-	$.getJSON("../assets/data/" + projectId + ".json")
+	$.getJSON('../assets/data/' + projectId + '.json')
 	.done(function(data) {
 		$('#prcgTitle').html('Progress for Project: ' + projectId);
 		$('#timeUpdated').html('Last updated at ' + new Date(data.lastUpdated).toLocaleString());
 
-		var dataRows = [];
+		var metricsRun = [];
 		var totalGensCompletedForProject = 0;
 		var percentage = 0.0;
 		var colorClassIndex = '';
 		var totalGensForRun = data.maxClonesPerRun * data.maxGensPerClone;
-		var totalGensForProject = totalGensForRun * data.maxRuns;
+		var totalGensForProject = data.maxRuns * totalGensForRun;
+		var totalGensSuccessfulForProject = 0;
+		var totalGensFailedForProject= 0;
+		var totalGensAbortedForProject = 0;
+		var totalGensRemainingForProject = 0;
+
+		$('#projectConfig').html(projectConfigText(projectId, data));
 
 		$.each(data.runs, function(index, run) {
 			var totalGensCompletedForRun = 0;
@@ -153,9 +170,27 @@ function prcgProgress() {
 				// abortedCount is used to display number of aborted trajectories
 				abortedCount = clone.aborted ? abortedCount + 1 : abortedCount;
 
-				// totalWUsCompleted is used to display number of completed WUs
+				// Gens (WUs) have been successfully completed for this clone
+				var completed = (clone.gen === -1 ? 0 : (clone.aborted ? clone.gen : clone.gen + 1));
+
+				// Keep track of how many Gens (WUs) have been successfully completed
+				totalGensSuccessfulForProject += completed;
+
+				// totalWUsCompleted is used to display number of completed WUs per run
 				// Cannot use genCount as it'll inflate numbers for aborted trajectories
-				totalWUsCompleted = totalWUsCompleted + (clone.gen + 1);
+				totalWUsCompleted += completed;
+
+				// Keep track of how many Gens (WUs) have failed
+				totalGensFailedForProject += clone.aborted ? 1 : 0;
+
+				// Keep track of how many future Gens (WUs) have been aborted if this gen failed
+				totalGensAbortedForProject += clone.aborted ? (data.maxGensPerClone - clone.gen - 1) : 0;
+
+				// Keep track of how many Gens (WUs) are remaining
+				totalGensRemainingForProject += (data.maxGensPerClone - genCount)
+
+				// Trajectory length for this clone
+				var trajLength = clone.gen === -1 ? 0 : (clone.gen + 1) * data.trajLengthPerWU;
 			});
 
 			// Determine color for the progress bar for the run
@@ -164,19 +199,22 @@ function prcgProgress() {
 			// Percentage completion for the run
 			percentage =  Math.round((((100 * totalGensCompletedForRun) / totalGensForRun) + Number.EPSILON) * 100) / 100;
 
-			// TODO: Pluralize in a better manner
-			var abortedAlert1 = ` <svg class="bi bi-exclamation-triangle-fill" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"><title>${abortedCount} trajectory aborted </title></path></svg>`;
-			var abortedAlert = ` <svg class="bi bi-exclamation-triangle-fill" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"><title>${abortedCount} trajectories aborted</title></path></svg>`;
-
 			// Display string to show for Run # along with any indicators for aborted trajectories
-			var runText = abortedCount > 0 ? (abortedCount === 1 ? run.run + abortedAlert1 : run.run + abortedAlert) : run.run;
+			var runText = abortedCount > 0 ? run.run + abortedAlert(abortedCount) : run.run;
 
-			// Data table row
-			dataRows[index] = { run: runText, details: prcgProgress2Link(projectId, run.run), remaining: totalWUsRemaining, completed: totalWUsCompleted, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
+			// Run data table row
+			metricsRun[index] = { run: runText, details: prcgProgress2Link(projectId, run.run), trajLength: totalWUsCompleted * data.trajLengthPerWU, completed: totalWUsCompleted, remaining: totalWUsRemaining, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
 		});
 
-		// Populate data into table
-		$('#prcgTable').bootstrapTable({data: dataRows, formatNoMatches: function () {return 'No data found.';}});
+		var metricsProject = [];
+		// Project level metrics
+		metricsProject[0] = { wuPlanned: totalGensForProject, wuCompleted: totalGensSuccessfulForProject, wuFailed: totalGensFailedForProject, wuAborted: totalGensAbortedForProject, wuRemaining: totalGensRemainingForProject, trajPlanned: totalGensForProject * data.trajLengthPerWU, trajCompleted: totalGensSuccessfulForProject * data.trajLengthPerWU, trajFailed: totalGensFailedForProject * data.trajLengthPerWU, trajAborted: totalGensAbortedForProject * data.trajLengthPerWU, trajRemaining: totalGensRemainingForProject * data.trajLengthPerWU };
+
+		// Populate data into project details table
+		$('#prcgProjectTable').bootstrapTable({data: metricsProject, formatNoMatches: function () {return 'No data found.';}});
+
+		// Populate data into run details table
+		$('#prcgRunTable').bootstrapTable({data: metricsRun, formatNoMatches: function () {return 'No data found.';}});
 
 		// Determine color for the progress bar for the overall project
 		colorClassIndex = Math.max(0, Math.floor((30 * totalGensCompletedForProject) / totalGensForProject) - 1);
@@ -187,8 +225,9 @@ function prcgProgress() {
 		// Populate progress bar
 		$('#prcgProgressBar').html(getProgressBar(percentage, colorClass[colorClassIndex]));
 
-		// Show details table
-		$('#prcgTable').show();
+		// Show tables
+		$('#prcgProjectTable').show();
+		$('#prcgRunTable').show();
 	})
 	.fail(function(data) {
 		// The project specified in the URL does not point to a valid project
@@ -226,7 +265,7 @@ function prcgProgress2() {
 	projectId = parseInt(projectId);
 	runId = parseInt(runId);
 
-	$.getJSON("../assets/data/" + projectId + ".json")
+	$.getJSON('../assets/data/' + projectId + '.json')
 	.done(function(data) {
 		var runData = data.runs.find(run=>run.run==runId);
 		if (!runData) {
@@ -237,14 +276,18 @@ function prcgProgress2() {
 		$('#prcg2Title').html('Progress for Project: ' + projectId + '; Run: ' + runId);
 		$('#timeUpdated').html('Last updated at ' + new Date(data.lastUpdated).toLocaleString());
 
-		var abortedAlert = ' <svg class="bi bi-exclamation-triangle-fill" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"><title>Trajectory aborted due to failures</title></path></svg>';
-
 		var dataSeries = [];
-		var dataRows = [];
+		var metricsClone = [];
 		var totalGensCompletedForRun = 0;
 		var percentage = 0.0;
 		var colorClassIndex = '';
 		var totalGensForRun = data.maxClonesPerRun * data.maxGensPerClone;
+		var totalGensSuccessfulForRun = 0;
+		var totalGensFailedForRun = 0;
+		var totalGensAbortedForRun = 0;
+		var totalGensRemainingForRun = 0;
+
+		$('#projectConfig').html(projectConfigText(projectId, data));
 
 		$.each(runData.clones, function(index, clone) {
 			// genCount is used for calculating percentage and remaining work
@@ -265,17 +308,39 @@ function prcgProgress2() {
 
 			// Display string to show for Last completed gen # along with any indicator for aborted trajectories
 			var lastCompleted = clone.gen === -1 ? '-' : clone.gen;
-			lastCompleted = clone.aborted ? lastCompleted + abortedAlert : lastCompleted;
+			lastCompleted = clone.aborted ? lastCompleted + abortedAlert(1) : lastCompleted;
 
-			// Data table row
-			dataRows[index] = { clone: clone.clone, gen: lastCompleted, completed: clone.gen + 1, remaining: (data.maxGensPerClone - genCount), progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
+			// Gens (WUs) have been successfully completed for this clone
+			var completed = (clone.gen === -1 ? 0 : (clone.aborted ? clone.gen : clone.gen + 1));
+
+			// Keep track of how many Gens (WUs) have been successfully completed for this run
+			totalGensSuccessfulForRun += completed;
+
+			// Keep track of how many Gens (WUs) have failed
+			totalGensFailedForRun += clone.aborted ? 1 : 0;
+
+			// Keep track of how many future Gens (WUs) have been aborted if this gen failed
+			totalGensAbortedForRun += clone.aborted ? (data.maxGensPerClone - clone.gen - 1) : 0;
+
+			// Keep track of how many Gens (WUs) are remaining
+			totalGensRemainingForRun += (data.maxGensPerClone - genCount)
+
+			// Clone data table row
+			metricsClone[index] = { clone: clone.clone, gen: lastCompleted, trajLength: completed * data.trajLengthPerWU, completed: completed, remaining: (data.maxGensPerClone - genCount), progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
 		});
+
+		var metricsRun = []
+		// Run level metrics
+		metricsRun[0] = { wuPlanned: totalGensForRun, wuCompleted: totalGensSuccessfulForRun, wuFailed: totalGensFailedForRun, wuAborted: totalGensAbortedForRun, wuRemaining: totalGensRemainingForRun, trajPlanned: totalGensForRun * data.trajLengthPerWU, trajCompleted: totalGensSuccessfulForRun * data.trajLengthPerWU, trajFailed: totalGensFailedForRun * data.trajLengthPerWU, trajAborted: totalGensAbortedForRun * data.trajLengthPerWU, trajRemaining: totalGensRemainingForRun * data.trajLengthPerWU };
 
 		// Draw chart
 		prcg2Chart(projectId, runId, data.maxClonesPerRun, data.maxGensPerClone, dataSeries);
 
-		// Populate data into table
-		$('#prcg2Table').bootstrapTable({data: dataRows, formatNoMatches: function () {return 'No data found.';}});
+		// Populate data into run details table
+		$('#prcg2RunTable').bootstrapTable({data: metricsRun, formatNoMatches: function () {return 'No data found.';}});
+
+		// Populate data into clone details table
+		$('#prcg2CloneTable').bootstrapTable({data: metricsClone, formatNoMatches: function () {return 'No data found.';}});
 
 		// Determine color for the progress bar for the run
 		colorClassIndex = Math.max(0, Math.floor((30 * totalGensCompletedForRun) / totalGensForRun) - 1);
@@ -286,8 +351,9 @@ function prcgProgress2() {
 		// Populate progress bar
 		$('#prcg2ProgressBar').html(getProgressBar(percentage, colorClass[colorClassIndex]));
 
-		// Show details table
-		$('#prcg2Table').show();
+		// Show tables
+		$('#prcg2RunTable').show();
+		$('#prcg2CloneTable').show();
 
 		// Display button to navigate up to project details
 		$('#prcg2UpToProjectURL').attr('href', './prcgProgress?project=' + projectId);
