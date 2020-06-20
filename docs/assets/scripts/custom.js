@@ -31,6 +31,11 @@ var colorClass = {
 	29: '#00FF00'
 };
 
+function round(value, decimals) {
+	// Source: https://www.jacklmoore.com/notes/rounding-in-javascript/
+	return Number(Math.round(value + 'e' + decimals) + 'e-' + decimals);
+}
+
 function getProgressBar(percentage, color) {
 	'use strict';
 	return `<div class="progress"><div class="progress-bar role="progressbar" style="width: ${percentage}%; background-color: ${color}" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100">${percentage}%</div></div>`;
@@ -204,12 +209,12 @@ function prcgProgress() {
 			var runText = abortedCount > 0 ? run.run + abortedAlert(abortedCount) : run.run;
 
 			// Run data table row
-			metricsRun[index] = { run: runText, details: prcgProgress2Link(projectId, run.run), trajLength: totalWUsCompleted * data.trajLengthPerWU, completed: totalWUsCompleted, remaining: totalWUsRemaining, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
+			metricsRun[index] = { run: runText, details: prcgProgress2Link(projectId, run.run), trajLength: round(totalWUsCompleted * data.trajLengthPerWU, 3), completed: totalWUsCompleted, remaining: totalWUsRemaining, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
 		});
 
 		var metricsProject = [];
 		// Project level metrics
-		metricsProject[0] = { wuPlanned: totalGensForProject, wuCompleted: totalGensSuccessfulForProject, wuFailed: totalGensFailedForProject, wuAborted: totalGensAbortedForProject, wuRemaining: totalGensRemainingForProject, trajPlanned: totalGensForProject * data.trajLengthPerWU, trajCompleted: totalGensSuccessfulForProject * data.trajLengthPerWU, trajFailed: totalGensFailedForProject * data.trajLengthPerWU, trajAborted: totalGensAbortedForProject * data.trajLengthPerWU, trajRemaining: totalGensRemainingForProject * data.trajLengthPerWU };
+		metricsProject[0] = { wuPlanned: totalGensForProject, wuCompleted: totalGensSuccessfulForProject, wuFailed: totalGensFailedForProject, wuAborted: totalGensAbortedForProject, wuRemaining: totalGensRemainingForProject, trajPlanned: round(totalGensForProject * data.trajLengthPerWU, 3), trajCompleted: round(totalGensSuccessfulForProject * data.trajLengthPerWU, 3), trajFailed: round(totalGensFailedForProject * data.trajLengthPerWU, 3), trajAborted: round(totalGensAbortedForProject * data.trajLengthPerWU, 3), trajRemaining: round(totalGensRemainingForProject * data.trajLengthPerWU, 3) };
 
 		// Populate data into project details table
 		$('#prcgProjectTable').bootstrapTable({data: metricsProject, formatNoMatches: function () {return 'No data found.';}});
@@ -329,12 +334,12 @@ function prcgProgress2() {
 			totalGensRemainingForRun += (data.maxGensPerClone - genCount)
 
 			// Clone data table row
-			metricsClone[index] = { clone: clone.clone, gen: lastCompleted, trajLength: completed * data.trajLengthPerWU, completed: completed, remaining: (data.maxGensPerClone - genCount), progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
+			metricsClone[index] = { clone: clone.clone, gen: lastCompleted, trajLength: round(completed * data.trajLengthPerWU, 3), completed: completed, remaining: (data.maxGensPerClone - genCount), progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
 		});
 
 		var metricsRun = []
 		// Run level metrics
-		metricsRun[0] = { wuPlanned: totalGensForRun, wuCompleted: totalGensSuccessfulForRun, wuFailed: totalGensFailedForRun, wuAborted: totalGensAbortedForRun, wuRemaining: totalGensRemainingForRun, trajPlanned: totalGensForRun * data.trajLengthPerWU, trajCompleted: totalGensSuccessfulForRun * data.trajLengthPerWU, trajFailed: totalGensFailedForRun * data.trajLengthPerWU, trajAborted: totalGensAbortedForRun * data.trajLengthPerWU, trajRemaining: totalGensRemainingForRun * data.trajLengthPerWU };
+		metricsRun[0] = { wuPlanned: totalGensForRun, wuCompleted: totalGensSuccessfulForRun, wuFailed: totalGensFailedForRun, wuAborted: totalGensAbortedForRun, wuRemaining: totalGensRemainingForRun, trajPlanned: round(totalGensForRun * data.trajLengthPerWU, 3), trajCompleted: round(totalGensSuccessfulForRun * data.trajLengthPerWU, 3), trajFailed: round(totalGensFailedForRun * data.trajLengthPerWU, 3), trajAborted: round(totalGensAbortedForRun * data.trajLengthPerWU, 3), trajRemaining: round(totalGensRemainingForRun * data.trajLengthPerWU, 3) };
 
 		// Draw chart
 		prcg2Chart(projectId, runId, data.maxClonesPerRun, data.maxGensPerClone, dataSeries);
@@ -391,7 +396,7 @@ function totalNumberFormatter(data) {
 	var field = this.field;
 	var total = 0;
 	$.each(data, function (i, row) { total += row[field]; });
-	return total;
+	return round(total, 3);
 }
 
 $(document).ready(function () {
