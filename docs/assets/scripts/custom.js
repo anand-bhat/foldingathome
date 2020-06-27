@@ -124,6 +124,13 @@ function projectConfigText(projectId, data) {
 	return 'Project ' + projectId + ' has been configured to have ' + data.maxRuns + (data.maxRuns > 1 ? ' Runs' : ' Run') + ', each with ' + data.maxClonesPerRun + (data.maxClonesPerRun > 1 ? ' Clones' : ' Clone') + '. Each Clone has ' + data.maxGensPerClone + (data.maxGensPerClone > 1 ? ' Gens' : ' Gen') + ', resulting in ' + (data.maxRuns * data.maxClonesPerRun * data.maxGensPerClone) + ' potential WUs for the project. Each WU represents ' + data.trajLengthPerWU + ' nanoseconds of simulation.';
 }
 
+function formattedDateString(dateVal) {
+	'use strict';
+	var dateTimeFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+	var parts = dateTimeFormat.formatToParts(new Date(dateVal));
+	return `${parts[4].value}-${parts[0].value}-${parts[2].value} ${parts[6].value}:${parts[8].value}:${parts[10].value} UTC`;
+}
+
 function prcgProgress() {
 	'use strict';
 	var urlParams = new URLSearchParams(window.location.search);
@@ -142,7 +149,7 @@ function prcgProgress() {
 	$.getJSON('../assets/data/' + projectId + '.json')
 	.done(function(data) {
 		$('#prcgTitle').html('Progress for Project: ' + projectId);
-		$('#timeUpdated').html('Last updated at ' + new Date(data.lastUpdated).toLocaleString());
+		$('#timeUpdated').html('Last updated at ' + formattedDateString(data.lastUpdated));
 
 		var metricsRun = [];
 		var totalGensCompletedForProject = 0;
@@ -286,7 +293,7 @@ function prcgProgress2() {
 		}
 
 		$('#prcg2Title').html('Progress for Project: ' + projectId + '; Run: ' + runId);
-		$('#timeUpdated').html('Last updated at ' + new Date(data.lastUpdated).toLocaleString());
+		$('#timeUpdated').html('Last updated at ' + formattedDateString(data.lastUpdated));
 
 		var dataSeries = [];
 		var metricsClone = [];
