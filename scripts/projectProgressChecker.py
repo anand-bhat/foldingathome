@@ -25,7 +25,7 @@ def main(argv):
     parser.add_argument('-c', '--clone', type=int, help='Max. number of clones per run')
     parser.add_argument('-g', '--gen', type=int, help='Max. number of gens per clone')
     parser.add_argument('-e', '--errors', type=int, default=5, help='Max. number of errors before the trajectory is aborted (default: 5)')
-    parser.add_argument('-l', '--length', type=int, help='Trajectory length (in ns) per WU')
+    parser.add_argument('-l', '--length', type=float, help='Trajectory length (in ns) per WU')
     args = parser.parse_args()
 
     projectFile = args.file
@@ -66,66 +66,61 @@ def main(argv):
             clone = clone_entry['clone']
             print('  Starting processing for Project {}, Run {}, Clone {}...'.format(project, run, clone))
             gen = clone_entry['gen']
-            if gen == maxGensPerClone-1:
+            if gen == maxGensPerClone - 1:
                 print('   All gens accounted for')
                 continue
 
             # Special case: Check next gen
-            genToSearch = gen + 1
-            response = wu_check(project, run, clone, genToSearch)
-            if response == 0:
+            response = wu_check(project, run, clone, gen + 1)
+            lastGenDate = '-'
+            if response[0] == 0:
                 print('   No progress detected')
                 continue
-
-            if response == 1 and genToSearch == (maxGensPerClone - 1):
-                # Record this gen where traj has completed and this is the last gen
-                clone_entry['gen'] = genToSearch
-                clone_entry.pop('aborted', None)
-                continue
-
-            if response == 2:
+            elif response[0] == 1:
+                # Record this gen where traj has completed
+                record_clone_entry(clone_entry, gen + 1, response[1], False)
+                if (gen + 1) == (maxGensPerClone - 1):
+                    # This is the last gen
+                    continue
+            elif response[0] == 2:
                 # Record this gen where traj has been aborted
-                clone_entry['gen'] = genToSearch-1
-                clone_entry['aborted'] = True
+                record_clone_entry(clone_entry, gen + 1, response[1], True)
                 continue
 
             # Special case: Check last gen
-            genToSearch = maxGensPerClone - 1
-            response = wu_check(project, run, clone, genToSearch)
-            if response == 1:
+            response = wu_check(project, run, clone, maxGensPerClone - 1)
+            if response[0] == 1:
                 # Record this gen where traj has completed
-                clone_entry['gen'] = genToSearch
-                clone_entry.pop('aborted', None)
+                record_clone_entry(clone_entry, maxGensPerClone - 1, response[1], False)
                 continue
-
-            if response == 2:
+            elif response[0] == 2:
                 # Record this gen where traj has been aborted
-                clone_entry['gen'] = genToSearch-1
-                clone_entry['aborted'] = True
+                record_clone_entry(clone_entry, maxGensPerClone - 1, response[1], True)
                 continue
 
-            # Binary search using recursion
-            lower = gen + 2
-            upper = maxGensPerClone-1
-            genToSearch = math.floor((upper + lower)/2)
-            latest = binary_search_wu_check(project, run, clone, genToSearch, lower, upper)
+            # Binary search
+            latest = binary_search_wu_check(project, run, clone, gen, gen + 2, maxGensPerClone - 1)
             # Record this gen
             if (latest[0] == 1):
                 # Record this gen where traj has completed
-                clone_entry['gen'] = latest[1]
-                clone_entry.pop('aborted', None)
-            elif (latest[0] == 0):
-                # Record previous gen where traj has completed
-                clone_entry['gen'] = latest[1]-1
-                clone_entry.pop('aborted', None)
+                record_clone_entry(clone_entry, latest[1], latest[2], False)
             elif (latest[0] == 2):
-                # Record previous gen where traj has been aborted
-                clone_entry['gen'] = latest[1]-1
-                clone_entry['aborted'] = True
+                # Record this gen where traj has been aborted
+                record_clone_entry(clone_entry, latest[1], latest[2], True)
 
-    project_entry['lastUpdated'] = math.floor(time.time()*1000)
+    project_entry['lastUpdated'] = math.floor(time.time() * 1000)
     write_projects_json(projectFile, project_entry)
     print('Done')
+
+
+def record_clone_entry(clone_entry, gen, genDate, aborted):
+    """Record an updated gen entry."""
+    clone_entry['gen'] = gen
+    clone_entry['genDate'] = genDate
+    if aborted:
+        clone_entry['aborted'] = True
+    else:
+        clone_entry.pop('aborted', None)
 
 
 def create_projects_json(projectFile, project, maxRuns, maxClonesPerRun, maxGensPerClone, maxFailures, trajLengthPerWU):
@@ -150,6 +145,7 @@ def create_projects_json(projectFile, project, maxRuns, maxClonesPerRun, maxGens
             clone_entry = json.loads(json.dumps({}))
             clone_entry['clone'] = clone
             clone_entry['gen'] = -1
+            clone_entry['genDate'] = '-'
             clones.append(clone_entry)
 
         run_entry['clones'] = clones
@@ -192,47 +188,50 @@ def wu_check(project, run, clone, gen):
         exit(1)
 
     response = response.json()
+    response.reverse()
     faultCount = 0
+    genDate = None
     for result in response:
+        if genDate is None:
+            genDate = result['log_time'] + ' UTC'
         code = result['code']
         if code == 'Ok':
-            return 1
+            return (1, genDate)
         elif code in ['Faulty', 'Faulty 2']:
             faultCount = faultCount + 1
 
     if faultCount >= MAX_FAILURES:
-        return 2
+        return (2, genDate)
 
-    return 0
+    return (0, '-')
 
 
 def binary_search_wu_check(project, run, clone, gen, lower, upper):
-    """Recursively search for last completed WU."""
-    response = wu_check(project, run, clone, gen)
-    if response == 2:
-        return (2, gen)
+    """Binary search for last completed WU."""
+    lastGen = -1
+    lastGenDate = '-'
 
-    if response == 0:
-        # Not found, check lower half
-        upper = gen
-        genToSearch = math.floor((upper + lower)/2)
-        if (genToSearch != lower and genToSearch != upper):
-            check = binary_search_wu_check(project, run, clone, genToSearch, lower, upper)
-            if check[0] >= 0:
-                return check
-        else:
-            return (0, genToSearch)
+    while lower <= upper:
+        mid = (lower + upper) // 2
+        response = wu_check(project, run, clone, mid)
+        if response[0] == 2:
+            return (2, mid, response[1])
 
-    if response == 1:
-        # Found, check upper half
-        lower = gen
-        genToSearch = math.floor((upper + lower)/2)
-        if (genToSearch != lower and genToSearch != upper):
-            check = binary_search_wu_check(project, run, clone, genToSearch, lower, upper)
-            if check[0] >= 0:
-                return check
+        if response[0] == 0:
+            # Not found, check lower half
+            upper = mid - 1
+            continue
 
-    return (1, genToSearch)
+        if response[0] == 1:
+            # Found, check upper half
+            lastGen = mid
+            lastGenDate = response[1]
+            lower = mid + 1
+            continue
+
+    if lastGen == -1:
+        return (0, -1, '-')
+    return (1, lastGen, lastGenDate)
 
 
 if __name__ == '__main__':

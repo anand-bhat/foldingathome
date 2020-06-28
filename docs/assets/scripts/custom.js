@@ -106,17 +106,18 @@ function prcg2Chart(projectId, runId, maxClonesPerRun, maxGensPerClone, dataSeri
 
 function prcgProgress2Link(project, run) {
 	'use strict';
-	return `<div><a href="./prcgProgress2?project=${project}&run=${run}">Details</a></div>`;
+	return `<a href="./prcgProgress2?project=${project}&run=${run}">${run}</a>`;
 }
 
-function failedAlert(failedCount, project, run, clone, gen) {
+function wuLookupLink(project, run, clone, gen) {
+	'use strict';
+	return `<a href="https://apps.foldingathome.org/wu#project=${project}&run=${run}&clone=${clone}&gen=${gen}" rel="noopener" target="_blank">${gen}</a>`;
+}
+
+function failedAlert(failedCount) {
 	'use strict';
 	var entity = failedCount > 1 ? 'trajectories' : 'trajectory';
-	var alertImage = `<svg class="bi bi-exclamation-triangle-fill" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"><title>${failedCount} ${entity} aborted</title></path></svg>`;
-	if (project != null && run != null && clone != null && gen != null) {
-		alertImage = `<a href="https://apps.foldingathome.org/wu#project=${project}&run=${run}&clone=${clone}&gen=${gen}" rel="noopener" target="_blank">${alertImage}</a>`;
-	}
-	return ` ${alertImage}`;
+	return `<svg class="bi bi-exclamation-triangle-fill" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"><title>${failedCount} ${entity} aborted</title></path></svg>`;
 }
 
 function projectConfigText(projectId, data) {
@@ -170,6 +171,7 @@ function prcgProgress() {
 			var totalGensFailedForRun = 0;
 			var totalGensAbortedForRun = 0;
 			var totalGensRemainingForRun = 0;
+			var lastGenDate = '';
 
 			$.each(run.clones, function(index, clone) {
 				// Total WUs completed (successfully or otherwise) for this clone
@@ -201,6 +203,10 @@ function prcgProgress() {
 				totalGensFailedForProject += totalGensFailedForClone;
 				totalGensAbortedForProject += totalGensAbortedForClone;
 				totalGensRemainingForProject += totalGensRemainingForClone;
+
+				if (lastGenDate < clone.genDate) {
+					lastGenDate = clone.genDate;
+				}
 			});
 
 			// Determine color for the progress bar for the run
@@ -210,10 +216,11 @@ function prcgProgress() {
 			percentage =  Math.round((((100 * totalGensCompletedForRun) / totalGensForRun) + Number.EPSILON) * 100) / 100;
 
 			// Display string to show for Run # along with any indicators for aborted trajectories
-			var runText = totalGensFailedForRun > 0 ? run.run + failedAlert(totalGensFailedForRun, null, null, null, null) : run.run;
+			var runText = prcgProgress2Link(projectId, run.run);
+			runText = totalGensFailedForRun > 0 ? runText + ' ' + failedAlert(totalGensFailedForRun) : runText;
 
 			// Run data table row
-			metricsRun[index] = { run: runText, details: prcgProgress2Link(projectId, run.run), trajLength: round(totalGensSuccessfulForRun * data.trajLengthPerWU, 3), completed: totalGensSuccessfulForRun, failed: totalGensFailedForRun, aborted: totalGensAbortedForRun, remaining: totalGensRemainingForRun, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
+			metricsRun[index] = { runVal: run.run, runText: runText, lastGenDate: lastGenDate, trajLength: round(totalGensSuccessfulForRun * data.trajLengthPerWU, 3), completed: totalGensSuccessfulForRun, failed: totalGensFailedForRun, aborted: totalGensAbortedForRun, remaining: totalGensRemainingForRun, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
 		});
 
 		var metricsProject = [];
@@ -335,11 +342,12 @@ function prcgProgress2() {
 			dataSeries[index] = { data: [{x: clone.clone, y: 0}, {x: clone.clone, y: Math.max(0, clone.gen)}], borderColor: colorClass[colorClassIndex], backgroundColor:colorClass[colorClassIndex] };
 
 			// Display string to show for Last completed gen # along with any indicator for aborted trajectories
-			var lastCompleted = clone.gen === -1 ? '-' : clone.gen;
-			lastCompleted = clone.aborted ? lastCompleted + failedAlert(1, projectId, runId, clone.clone, clone.gen === -1 ? 0 : clone.gen) : lastCompleted;
+			var genVal = clone.gen === -1 ? '-' : clone.gen;
+			var genText = clone.gen === -1 ? '-' : wuLookupLink(projectId, runId, clone.clone, clone.gen);
+			genText = clone.aborted ? genText + ' ' + failedAlert(1) : genText;
 
 			// Clone data table row
-			metricsClone[index] = { clone: clone.clone, gen: lastCompleted, trajLength: round(totalGensSuccessfulForClone * data.trajLengthPerWU, 3), completed: totalGensSuccessfulForClone, failed: totalGensFailedForClone, aborted: totalGensAbortedForClone, remaining: totalGensRemainingForClone, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
+			metricsClone[index] = { clone: clone.clone, genVal: genVal, genText: genText, genDate: clone.genDate, trajLength: round(totalGensSuccessfulForClone * data.trajLengthPerWU, 3), completed: totalGensSuccessfulForClone, failed: totalGensFailedForClone, aborted: totalGensAbortedForClone, remaining: totalGensRemainingForClone, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
 		});
 
 		var metricsRun = [];
