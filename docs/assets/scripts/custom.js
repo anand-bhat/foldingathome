@@ -109,12 +109,12 @@ function prcgProgress2Link(project, run) {
 	return `<div><a href="./prcgProgress2?project=${project}&run=${run}">Details</a></div>`;
 }
 
-function abortedAlert(abortedCount, project, run, clone, gen) {
+function failedAlert(failedCount, project, run, clone, gen) {
 	'use strict';
-	var entity = abortedCount > 1 ? 'trajectories' : 'trajectory';
-	var alertImage = `<svg class="bi bi-exclamation-triangle-fill" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"><title>${abortedCount} ${entity} aborted</title></path></svg>`;
+	var entity = failedCount > 1 ? 'trajectories' : 'trajectory';
+	var alertImage = `<svg class="bi bi-exclamation-triangle-fill" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"><title>${failedCount} ${entity} aborted</title></path></svg>`;
 	if (project != null && run != null && clone != null && gen != null) {
-		alertImage = `<a href="https://apps.foldingathome.org/wu#project=${project}&run=${run}&clone=${clone}&gen=${gen}" rel="noopener" target="_blank">${alertImage}</a>`
+		alertImage = `<a href="https://apps.foldingathome.org/wu#project=${project}&run=${run}&clone=${clone}&gen=${gen}" rel="noopener" target="_blank">${alertImage}</a>`;
 	}
 	return ` ${alertImage}`;
 }
@@ -152,13 +152,13 @@ function prcgProgress() {
 		$('#timeUpdated').html('Last updated at ' + formattedDateString(data.lastUpdated));
 
 		var metricsRun = [];
-		var totalGensCompletedForProject = 0;
 		var percentage = 0.0;
 		var colorClassIndex = '';
 		var totalGensForRun = data.maxClonesPerRun * data.maxGensPerClone;
 		var totalGensForProject = data.maxRuns * totalGensForRun;
+		var totalGensCompletedForProject = 0;
 		var totalGensSuccessfulForProject = 0;
-		var totalGensFailedForProject= 0;
+		var totalGensFailedForProject = 0;
 		var totalGensAbortedForProject = 0;
 		var totalGensRemainingForProject = 0;
 
@@ -166,48 +166,41 @@ function prcgProgress() {
 
 		$.each(data.runs, function(index, run) {
 			var totalGensCompletedForRun = 0;
-			var totalWUsCompleted = 0;
-			var totalWUsRemaining = 0;
-			var abortedCount = 0;
+			var totalGensSuccessfulForRun = 0;
+			var totalGensFailedForRun = 0;
+			var totalGensAbortedForRun = 0;
+			var totalGensRemainingForRun = 0;
 
 			$.each(run.clones, function(index, clone) {
-				// genCount is used for calculating percentage and remaining work
-				// Set it to gen + 1 or to max gen (if aborted)
-				var genCount = clone.aborted ? data.maxGensPerClone : clone.gen + 1;
-
-				// Accumulator to report on percentage completion for this run
-				totalGensCompletedForRun += genCount;
-
-				// Accumulator to report on overall percentage completion for the project
-				totalGensCompletedForProject += genCount;
-
-				// Accumulator to report on remaining number of WUs for this run
-				totalWUsRemaining = totalWUsRemaining + (data.maxGensPerClone - genCount);
-
-				// abortedCount is used to display number of aborted trajectories
-				abortedCount = clone.aborted ? abortedCount + 1 : abortedCount;
+				// Total WUs completed (successfully or otherwise) for this clone
+				// Used to calculate percentage and remaining work
+				var totalGensCompletedForClone = clone.aborted ? data.maxGensPerClone : clone.gen + 1;
 
 				// Gens (WUs) have been successfully completed for this clone
-				var completed = (clone.gen === -1 ? 0 : clone.gen + 1);
+				var totalGensSuccessfulForClone = clone.gen === -1 ? 0 : (clone.aborted ? clone.gen : clone.gen + 1);
 
-				// Keep track of how many Gens (WUs) have been successfully completed
-				totalGensSuccessfulForProject += completed;
+				// Gens (WUs) failed for this clone (1 or 0)
+				var totalGensFailedForClone = clone.aborted ? 1 : 0;
 
-				// totalWUsCompleted is used to display number of completed WUs per run
-				// Cannot use genCount as it'll inflate numbers for aborted trajectories
-				totalWUsCompleted += completed;
+				// Gens (WUs) aborted for this clone if a gen failed
+				var totalGensAbortedForClone = clone.aborted ? (data.maxGensPerClone - totalGensSuccessfulForClone - 1) : 0;
 
-				// Keep track of how many Gens (WUs) have failed
-				totalGensFailedForProject += clone.aborted ? 1 : 0;
+				// Gens (WUs) remaining for this clone
+				var totalGensRemainingForClone = data.maxGensPerClone - totalGensCompletedForClone;
 
-				// Keep track of how many future Gens (WUs) have been aborted if this gen failed
-				totalGensAbortedForProject += clone.aborted ? (data.maxGensPerClone - completed - 1) : 0;
+				// Run level accumulators
+				totalGensCompletedForRun += totalGensCompletedForClone;
+				totalGensSuccessfulForRun += totalGensSuccessfulForClone;
+				totalGensFailedForRun += totalGensFailedForClone;
+				totalGensAbortedForRun += totalGensAbortedForClone;
+				totalGensRemainingForRun += totalGensRemainingForClone;
 
-				// Keep track of how many Gens (WUs) are remaining
-				totalGensRemainingForProject += (data.maxGensPerClone - genCount)
-
-				// Trajectory length for this clone
-				var trajLength = clone.gen === -1 ? 0 : (clone.gen + 1) * data.trajLengthPerWU;
+				// Project level accumulators
+				totalGensCompletedForProject += totalGensCompletedForClone;
+				totalGensSuccessfulForProject += totalGensSuccessfulForClone;
+				totalGensFailedForProject += totalGensFailedForClone;
+				totalGensAbortedForProject += totalGensAbortedForClone;
+				totalGensRemainingForProject += totalGensRemainingForClone;
 			});
 
 			// Determine color for the progress bar for the run
@@ -217,10 +210,10 @@ function prcgProgress() {
 			percentage =  Math.round((((100 * totalGensCompletedForRun) / totalGensForRun) + Number.EPSILON) * 100) / 100;
 
 			// Display string to show for Run # along with any indicators for aborted trajectories
-			var runText = abortedCount > 0 ? run.run + abortedAlert(abortedCount, null, null, null, null) : run.run;
+			var runText = totalGensFailedForRun > 0 ? run.run + failedAlert(totalGensFailedForRun, null, null, null, null) : run.run;
 
 			// Run data table row
-			metricsRun[index] = { run: runText, details: prcgProgress2Link(projectId, run.run), trajLength: round(totalWUsCompleted * data.trajLengthPerWU, 3), completed: totalWUsCompleted, remaining: totalWUsRemaining, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
+			metricsRun[index] = { run: runText, details: prcgProgress2Link(projectId, run.run), trajLength: round(totalGensSuccessfulForRun * data.trajLengthPerWU, 3), completed: totalGensSuccessfulForRun, failed: totalGensFailedForRun, aborted: totalGensAbortedForRun, remaining: totalGensRemainingForRun, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
 		});
 
 		var metricsProject = [];
@@ -297,10 +290,10 @@ function prcgProgress2() {
 
 		var dataSeries = [];
 		var metricsClone = [];
-		var totalGensCompletedForRun = 0;
 		var percentage = 0.0;
 		var colorClassIndex = '';
 		var totalGensForRun = data.maxClonesPerRun * data.maxGensPerClone;
+		var totalGensCompletedForRun = 0;
 		var totalGensSuccessfulForRun = 0;
 		var totalGensFailedForRun = 0;
 		var totalGensAbortedForRun = 0;
@@ -309,46 +302,47 @@ function prcgProgress2() {
 		$('#projectConfig').html(projectConfigText(projectId, data));
 
 		$.each(runData.clones, function(index, clone) {
-			// genCount is used for calculating percentage and remaining work
-			// Set it to gen + 1 or to max gen (if aborted)
-			var genCount = clone.aborted ? data.maxGensPerClone : clone.gen + 1;
+			// Total WUs completed (successfully or otherwise) for this clone
+			// Used to calculate percentage and remaining work
+			var totalGensCompletedForClone = clone.aborted ? data.maxGensPerClone : clone.gen + 1;
 
-			// Accumulator to report on percentage completion for this run
-			totalGensCompletedForRun += genCount;
+			// Gens (WUs) successfully completed for this clone
+			var totalGensSuccessfulForClone = clone.gen === -1 ? 0 : (clone.aborted ? clone.gen : clone.gen + 1);
+
+			// Gens (WUs) failed for this clone (1 or 0)
+			var totalGensFailedForClone = clone.aborted ? 1 : 0;
+
+			// Gens (WUs) aborted for this clone if a gen failed
+			var totalGensAbortedForClone = clone.aborted ? (data.maxGensPerClone - totalGensSuccessfulForClone - 1) : 0;
+
+			// Gens (WUs) remaining for this clone
+			var totalGensRemainingForClone = data.maxGensPerClone - totalGensCompletedForClone;
+
+			// Run level accumulators
+			totalGensCompletedForRun += totalGensCompletedForClone;
+			totalGensSuccessfulForRun += totalGensSuccessfulForClone;
+			totalGensFailedForRun += totalGensFailedForClone;
+			totalGensAbortedForRun += totalGensAbortedForClone;
+			totalGensRemainingForRun += totalGensRemainingForClone;
 
 			// Determine color for the progress bar for the clone
-			colorClassIndex = Math.max(0, Math.floor((30 * genCount) / data.maxGensPerClone) - 1);
+			colorClassIndex = Math.max(0, Math.floor((30 * totalGensCompletedForClone) / data.maxGensPerClone) - 1);
 
 			// Percentage completion for the clone
-			percentage =  Math.round((((100 * genCount) / data.maxGensPerClone) + Number.EPSILON) * 100) / 100;
+			percentage =  Math.round((((100 * totalGensCompletedForClone) / data.maxGensPerClone) + Number.EPSILON) * 100) / 100;
 
 			// Create coordinates for chart
 			dataSeries[index] = { data: [{x: clone.clone, y: 0}, {x: clone.clone, y: Math.max(0, clone.gen)}], borderColor: colorClass[colorClassIndex], backgroundColor:colorClass[colorClassIndex] };
 
 			// Display string to show for Last completed gen # along with any indicator for aborted trajectories
 			var lastCompleted = clone.gen === -1 ? '-' : clone.gen;
-			lastCompleted = clone.aborted ? lastCompleted + abortedAlert(1, projectId, runId, clone.clone, clone.gen === -1 ? 0 : clone.gen) : lastCompleted;
-
-			// Gens (WUs) have been successfully completed for this clone
-			var completed = (clone.gen === -1 ? 0 : clone.gen + 1);
-
-			// Keep track of how many Gens (WUs) have been successfully completed for this run
-			totalGensSuccessfulForRun += completed;
-
-			// Keep track of how many Gens (WUs) have failed
-			totalGensFailedForRun += clone.aborted ? 1 : 0;
-
-			// Keep track of how many future Gens (WUs) have been aborted if this gen failed
-			totalGensAbortedForRun += clone.aborted ? (data.maxGensPerClone - completed - 1) : 0;
-
-			// Keep track of how many Gens (WUs) are remaining
-			totalGensRemainingForRun += (data.maxGensPerClone - genCount)
+			lastCompleted = clone.aborted ? lastCompleted + failedAlert(1, projectId, runId, clone.clone, clone.gen === -1 ? 0 : clone.gen) : lastCompleted;
 
 			// Clone data table row
-			metricsClone[index] = { clone: clone.clone, gen: lastCompleted, trajLength: round(completed * data.trajLengthPerWU, 3), completed: completed, remaining: (data.maxGensPerClone - genCount), progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
+			metricsClone[index] = { clone: clone.clone, gen: lastCompleted, trajLength: round(totalGensSuccessfulForClone * data.trajLengthPerWU, 3), completed: totalGensSuccessfulForClone, failed: totalGensFailedForClone, aborted: totalGensAbortedForClone, remaining: totalGensRemainingForClone, progressVal: percentage, progress: getProgressBar(percentage, colorClass[colorClassIndex]) };
 		});
 
-		var metricsRun = []
+		var metricsRun = [];
 		// Run level metrics
 		metricsRun[0] = { wuPlanned: totalGensForRun, wuCompleted: totalGensSuccessfulForRun, wuFailed: totalGensFailedForRun, wuAborted: totalGensAbortedForRun, wuRemaining: totalGensRemainingForRun, trajPlanned: round(totalGensForRun * data.trajLengthPerWU, 3), trajCompleted: round(totalGensSuccessfulForRun * data.trajLengthPerWU, 3), trajFailed: round(totalGensFailedForRun * data.trajLengthPerWU, 3), trajAborted: round(totalGensAbortedForRun * data.trajLengthPerWU, 3), trajRemaining: round(totalGensRemainingForRun * data.trajLengthPerWU, 3) };
 
