@@ -4,7 +4,7 @@
   "lastUpdated": 1593541701880,
   "maxRuns": 1,
   "maxClonesPerRun": 50,
-  "maxGensPerClone": 250,
+  "maxGensPerClone": 125,
   "trajLengthPerWU": 0.5,
   "runs": [
     {
