@@ -5,7 +5,7 @@
   "maxRuns": 1,
   "maxClonesPerRun": 50,
   "maxGensPerClone": 125,
-  "trajLengthPerWU": 0.5,
+  "trajLengthPerWU": 5,
   "runs": [
     {
       "run": 0,
