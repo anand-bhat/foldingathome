@@ -195,7 +195,7 @@ def wu_check(project, run, clone, gen):
         if genDate is None:
             genDate = result['log_time'] + ' UTC'
         code = result['code']
-        if code == 'Ok':
+        if code in ['Ok', 'Relayed']:
             return (1, genDate)
         elif code in ['Faulty', 'Faulty 2']:
             faultCount = faultCount + 1
