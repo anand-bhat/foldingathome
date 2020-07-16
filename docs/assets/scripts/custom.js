@@ -120,6 +120,11 @@ function skippedAlert(count) {
   return `<svg class="bi bi-info-circle" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><title>${count} ${entity} skipped</title><path fill-rule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M8.93 6.588l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588z"/><circle cx="8" cy="4.5" r="1"/></svg>`;
 }
 
+function lateAlert(count) {
+  const entity = count > 1 ? 'trajectories' : 'trajectory';
+  return `<svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-hourglass-bottom" fill="orange" xmlns="http://www.w3.org/2000/svg"><title>${count} ${entity} running late</title><path fill-rule="evenodd" d="M2 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-1v1a4.5 4.5 0 0 1-2.557 4.06c-.29.139-.443.377-.443.59v.7c0 .213.154.451.443.59A4.5 4.5 0 0 1 12.5 13v1h1a.5.5 0 0 1 0 1h-11a.5.5 0 1 1 0-1h1v-1a4.5 4.5 0 0 1 2.557-4.06c.29-.139.443-.377.443-.59v-.7c0-.213-.154-.451-.443-.59A4.5 4.5 0 0 1 3.5 3V2h-1a.5.5 0 0 1-.5-.5zm2.5.5v1a3.5 3.5 0 0 0 1.989 3.158c.533.256 1.011.791 1.011 1.491v.702s.18.149.5.149.5-.15.5-.15v-.7c0-.701.478-1.236 1.011-1.492A3.5 3.5 0 0 0 11.5 3V2h-7z"/></svg>`;
+}
+
 function projectConfigText(projectId, data) {
   return `Project ${projectId} has been configured to have ${data.maxRuns}${data.maxRuns > 1 ? ' Runs' : ' Run'}, each with ${data.maxClonesPerRun}${data.maxClonesPerRun > 1 ? ' Clones' : ' Clone'}. Each Clone has ${data.maxGensPerClone}${data.maxGensPerClone > 1 ? ' Gens' : ' Gen'}, resulting in ${data.maxRuns * data.maxClonesPerRun * data.maxGensPerClone} potential WUs for the project. Each WU represents ${data.trajLengthPerWU} nanoseconds of simulation.`;
 }
@@ -130,6 +135,11 @@ function formattedDateString(dateVal) {
   });
   const parts = dateTimeFormat.formatToParts(new Date(dateVal));
   return `${parts[4].value}-${parts[0].value}-${parts[2].value} ${parts[6].value}:${parts[8].value}:${parts[10].value} UTC`;
+}
+
+function isNextGenLate(checkedAt, lastGenAt) {
+  const latePeriod =  15 * 24 * 60 * 60 * 1000; // 15 days
+  return Date.parse(lastGenAt) < (checkedAt - latePeriod);
 }
 
 function prcgProgress() {
@@ -161,6 +171,7 @@ function prcgProgress() {
       let totalGensFailedForProject = 0;
       let totalGensAbortedForProject = 0;
       let totalGensRemainingForProject = 0;
+      let totalGensLateForProject = 0;
 
       $('#projectConfig').html(projectConfigText(projectId, data));
 
@@ -168,9 +179,10 @@ function prcgProgress() {
         let totalGensCompletedForRun = 0;
         let totalGensSuccessfulForRun = 0;
         let totalGensFailedForRun = 0;
-		let totalGensSkippedForRun = 0;
+        let totalGensSkippedForRun = 0;
         let totalGensAbortedForRun = 0;
         let totalGensRemainingForRun = 0;
+        let totalGensLateForRun = 0;
         let lastGenDate = '';
 
         $.each(run.clones, (cloneIndex, clone) => {
@@ -193,13 +205,17 @@ function prcgProgress() {
           // Gens (WUs) remaining for this clone
           const totalGensRemainingForClone = data.maxGensPerClone - totalGensCompletedForClone;
 
+          // Gens (WUs) late for this clone (1 or 0)
+          const totalGensLateForClone = totalGensRemainingForClone > 0 && isNextGenLate(data.lastUpdated, clone.genDate) ? 1 : 0;
+
           // Run level accumulators
           totalGensCompletedForRun += totalGensCompletedForClone;
           totalGensSuccessfulForRun += totalGensSuccessfulForClone;
           totalGensFailedForRun += totalGensFailedForClone;
           totalGensAbortedForRun += totalGensAbortedForClone;
           totalGensRemainingForRun += totalGensRemainingForClone;
-		  totalGensSkippedForRun += totalGensSkippedForClone;
+          totalGensSkippedForRun += totalGensSkippedForClone;
+          totalGensLateForRun += totalGensLateForClone;
 
           // Project level accumulators
           totalGensCompletedForProject += totalGensCompletedForClone;
@@ -207,6 +223,7 @@ function prcgProgress() {
           totalGensFailedForProject += totalGensFailedForClone;
           totalGensAbortedForProject += totalGensAbortedForClone;
           totalGensRemainingForProject += totalGensRemainingForClone;
+          totalGensLateForProject += totalGensLateForClone;
 
           if (lastGenDate < clone.genDate) {
             lastGenDate = clone.genDate;
@@ -221,13 +238,25 @@ function prcgProgress() {
 
         // Display string to show for Run # along with any indicators for aborted trajectories
         let runText = prcgProgress2Link(projectId, run.run);
-        runText = totalGensFailedForRun > 0 ? `${runText} ${failedAlert(totalGensFailedForRun)}` : runText;
-        runText = totalGensSkippedForRun > 0 ? `${runText} ${skippedAlert(totalGensSkippedForRun)}` : runText;
+        let flags = [];
+        if (totalGensFailedForRun > 0) {
+          flags.push('F');
+          runText = `${runText} ${failedAlert(totalGensFailedForRun)}`;
+        }
+        if (totalGensLateForRun > 0) {
+          flags.push('L');
+          runText = `${runText} ${lateAlert(totalGensLateForRun)}`;
+        }
+        if (totalGensSkippedForRun > 0) {
+          flags.push('S');
+          runText = `${runText} ${skippedAlert(totalGensSkippedForRun)}`;
+        }
 
         // Run data table row
         metricsRun[runIndex] = {
           runVal: run.run,
           runText,
+          flags: flags.toString(),
           lastGenDate,
           trajLength: round(totalGensSuccessfulForRun * data.trajLengthPerWU, 3),
           completed: totalGensSuccessfulForRun,
@@ -338,6 +367,7 @@ function prcgProgress2() {
       let totalGensFailedForRun = 0;
       let totalGensAbortedForRun = 0;
       let totalGensRemainingForRun = 0;
+      let totalGensLateForRun = 0;
 
       $('#projectConfig').html(projectConfigText(projectId, data));
 
@@ -358,12 +388,16 @@ function prcgProgress2() {
         // Gens (WUs) remaining for this clone
         const totalGensRemainingForClone = data.maxGensPerClone - totalGensCompletedForClone;
 
+        // Gens (WUs) late for this clone (1 or 0)
+        const totalGensLateForClone = totalGensRemainingForClone > 0 && isNextGenLate(data.lastUpdated, clone.genDate) ? 1 : 0;
+
         // Run level accumulators
         totalGensCompletedForRun += totalGensCompletedForClone;
         totalGensSuccessfulForRun += totalGensSuccessfulForClone;
         totalGensFailedForRun += totalGensFailedForClone;
         totalGensAbortedForRun += totalGensAbortedForClone;
         totalGensRemainingForRun += totalGensRemainingForClone;
+        totalGensLateForRun += totalGensLateForClone;
 
         // Determine color for the progress bar for the clone
         colorClassIndex = Math.max(0, Math.floor((30 * totalGensCompletedForClone) / data.maxGensPerClone) - 1);
@@ -377,14 +411,26 @@ function prcgProgress2() {
         // Display string to show for Last completed gen # along with any indicator for aborted trajectories
         const genVal = clone.gen === -1 ? '-' : clone.gen;
         let genText = clone.gen === -1 ? '-' : wuLookupLink(projectId, runId, clone.clone, clone.gen);
-        genText = clone.aborted ? `${genText} ${failedAlert(1)}` : genText;
-        genText = clone.skipped ? `${genText} ${skippedAlert(1)}` : genText;
+        let flags = [];
+        if (clone.aborted) {
+          flags.push('F');
+          genText = `${genText} ${failedAlert(1)}`;
+        }
+        if (totalGensLateForClone > 0) {
+          flags.push('L');
+          genText = `${genText} ${lateAlert(1)}`;
+        }
+        if (clone.skipped) {
+          flags.push('S');
+          genText = `${genText} ${skippedAlert(1)}`;
+        }
 
         // Clone data table row
         metricsClone[cloneIndex] = {
           clone: clone.clone,
           genVal,
           genText,
+          flags: flags.toString(),
           genDate: clone.genDate,
           trajLength: round(totalGensSuccessfulForClone * data.trajLengthPerWU, 3),
           completed: totalGensSuccessfulForClone,
