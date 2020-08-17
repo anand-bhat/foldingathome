@@ -1,11 +1,11 @@
 {
   "project": 13808,
   "maxFailures": 5,
-  "lastUpdated": 1597486986532,
+  "lastUpdated": 1597629679858,
   "maxRuns": 1,
   "maxClonesPerRun": 300,
   "maxGensPerClone": 1000,
-  "trajLengthPerWU": 1e-12,
+  "trajLengthPerWU": 0,
   "runs": [
     {
       "run": 0,
@@ -1393,8 +1393,10 @@
         },
         {
           "clone": 274,
-          "gen": 417,
-          "genDate": "2018-10-17 10:15:02 UTC"
+          "gen": 418,
+          "genDate": "2018-10-25 23:15:02 UTC",
+          "aborted": true,
+          "abortedWhenDumped": true
         },
         {
           "clone": 275,
