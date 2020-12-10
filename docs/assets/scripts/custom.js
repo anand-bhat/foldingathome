@@ -1,3 +1,4 @@
+/*jshint esversion: 6 */
 const colorClass = {
   0: '#FF0000',
   1: '#FF1100',
@@ -102,8 +103,16 @@ function prcg2Chart(projectId, runId, maxClonesPerRun, maxGensPerClone, dataSeri
   return myChart;
 }
 
+function prcgProgressLink(project, href) {
+  return `<a href="./prcgProgress?project=${project}">${href}</a>`;
+}
+
 function prcgProgress2Link(project, run) {
   return `<a href="./prcgProgress2?project=${project}&run=${run}">${run}</a>`;
+}
+
+function projectDetailsLink(project) {
+  return `<a href="https://stats.foldingathome.org/project?p=${project}" rel="noopener" target="_blank">${project}</a>`;
 }
 
 function wuLookupLink(project, run, clone, gen) {
@@ -652,6 +661,45 @@ function participatingOrganisations() {
     });
 }
 
+function projectSummary() {
+  $.getJSON('../assets/data/projectSummary.json')
+    .done((data) => {
+      $.each(data.projects, (projectIndex, project) => {
+        project.percentage = round(project.percentage, 2);
+        project.timeout = round(project.timeout / 86400, 2);
+        project.deadline = round(project.deadline / 86400, 2);
+
+        project.projectVal = project.project;
+        project.project = projectDetailsLink(project.project);
+
+        project.beta = project.active ? (project.beta ? 'Yes' : 'No') : '-';
+        project.public = project.active ? (project.public ? 'Yes' : 'No') : '-';
+        project.active = project.active ? 'Yes' : 'No';
+
+        project.cause = project.cause === 'unspecified' ? 'other' : project.cause;
+
+        project.type = (project.type.startsWith('OPENMM')? 'GPU' : 'CPU') + '&nbsp;(' + project.type + ')';
+
+        const colorClassIndex = Math.max(0, Math.floor(project.percentage * 30 / 100) - 1);
+
+        project.progressVal = project.percentage;
+        project.progress = prcgProgressLink(project.projectVal, getProgressBar(project.percentage, colorClass[colorClassIndex]));
+      });
+
+      // Populate data into project summary table
+      $('#projectSummaryTable').bootstrapTable({
+        data: data.projects,
+        formatNoMatches() {
+          return 'No data found.';
+        },
+      });
+      $('#projectSummaryTable').show();
+    })
+    .fail(() => {
+      $('#projectSummaryError').html('Unable to get data.');
+    });
+}
+
 function totalLabelFormatter() {
   return 'Total:';
 }
@@ -675,6 +723,11 @@ $(document).ready(() => {
   // PRCG Progress 2
   if (page === 'prcgProgress2') {
     prcgProgress2();
+  }
+
+  // Project Summary
+  if (page === 'projectProgress') {
+    projectSummary();
   }
 
   // Participating organisations
