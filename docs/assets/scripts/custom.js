@@ -347,17 +347,17 @@ function prcgProgress() {
       // Populate data into project details table
       $('#prcgProjectTable').bootstrapTable({
         data: metricsProject,
-        formatNoMatches() {
+        formatNoMatches: function () {
           return 'No data found.';
-        },
+        }
       });
 
       // Populate data into run details table
       $('#prcgRunTable').bootstrapTable({
         data: metricsRun,
-        formatNoMatches() {
+        formatNoMatches: function () {
           return 'No data found.';
-        },
+        }
       });
 
       // Determine color for the progress bar for the overall project
@@ -552,17 +552,17 @@ function prcgProgress2() {
       // Populate data into run details table
       $('#prcg2RunTable').bootstrapTable({
         data: metricsRun,
-        formatNoMatches() {
+        formatNoMatches: function () {
           return 'No data found.';
-        },
+        }
       });
 
       // Populate data into clone details table
       $('#prcg2CloneTable').bootstrapTable({
         data: metricsClone,
-        formatNoMatches() {
+        formatNoMatches: function () {
           return 'No data found.';
-        },
+        }
       });
 
       // Determine color for the progress bar for the run
@@ -704,10 +704,23 @@ function projectSummary() {
       // Populate data into project summary table
       $('#projectSummaryTable').bootstrapTable({
         data: data.projects,
-        formatNoMatches() {
+        formatNoMatches: function () {
           return 'No data found.';
-        },
+        }
       });
+
+      // Control visibility of projects
+      const visibility = new URLSearchParams(window.location.search).get('visibility');
+      let filter = {}
+      if (visibility === null || visibility.toLowerCase() === 'active') {
+        filter = {active: ['Yes']};
+      } else if (visibility.toLowerCase() === 'public') {
+        filter = {public: ['Yes']};
+      } else if (visibility.toLowerCase() === 'beta') {
+        filter = {beta: ['Yes']};
+      }
+
+      $('#projectSummaryTable').bootstrapTable('filterBy', filter);
       $('#projectSummaryTable').show();
     })
     .fail(() => {
@@ -807,9 +820,9 @@ $(document).ready(() => {
           $('#wuStatus').removeClass('bad').addClass('good');
           $('#wuStatusTable').bootstrapTable({
             data,
-            formatNoMatches() {
+            formatNoMatches: function () {
               return 'No credits found.';
-            },
+            }
           });
           $('#wuStatusTable').bootstrapTable('load', data);
           $('#wuStatusData').show();
