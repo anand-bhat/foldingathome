@@ -10,7 +10,7 @@ tagline_min: ProjectProgress
 <div>
 	A sample visualisation of project progress. NOTE: This does not indicate real-time/ accurate progress of projects at this time.
 	<div id="projectSummaryVisibilityChooser">
-		Display: <a href="./projectProgress?visibility=all">All</a> | <a href="./projectProgress?visibility=active">Active</a> | <a href="./projectProgress?visibility=public">Public</a> | <a href="./projectProgress?visibility=beta">Beta</a> projects.
+		Display: <a href="./projectProgress?visibility=all">All</a> | <a href="./projectProgress?visibility=active">Active</a> | <a href="./projectProgress?visibility=public">Public</a> | <a href="./projectProgress?visibility=beta">Beta</a> | <a href="./projectProgress?visibility=internal">Internal</a> projects.
 	</div>
 </div>
 <hr>
@@ -22,9 +22,11 @@ tagline_min: ProjectProgress
 				<th data-field="projectVal" data-visible="false">Project</th>
 				<th data-field="project" data-sort-name="projectVal" data-sortable="true" data-title-tooltip="Project ID" data-width="1" data-width-unit="%">Project</th>
 				<th data-field="cause" data-sortable="true" data-title-tooltip="Project cause" data-width="1" data-width-unit="%">Cause</th>
-				<th data-field="active" data-sortable="true" data-title-tooltip="Is this project active?" data-width="1" data-width-unit="%">Active</th>
-				<th data-field="beta" data-sortable="true" data-title-tooltip="Is this project being assigned to Beta clients?" data-width="1" data-width-unit="%">Beta</th>
-				<th data-field="public" data-sortable="true" data-title-tooltip="Is this project being assigned to Public clients?" data-width="1" data-width-unit="%">Public</th>
+				<th data-field="active" data-visible="false">Active</th>
+				<th data-field="internal" data-visible="false">Internal</th>
+				<th data-field="beta" data-visible="false">Beta</th>
+				<th data-field="public" data-visible="false">Public</th>
+				<th data-field="status" data-sortable="true" data-title-tooltip="Type of clients the project is being assigned to. I = Internal; B = Beta; P = Public; - = Not being assigned" data-width="1" data-width-unit="%">Status</th>
 				<th data-field="type" data-sortable="true" data-title-tooltip="Project type" data-width="1" data-width-unit="%">Core Type</th>
 				<th data-field="ws" data-sortable="true" data-title-tooltip="Work Server for this project" data-width="1" data-width-unit="%">Work Server</th>
 				<th data-field="creditVal" data-visible="false">Credit</th>

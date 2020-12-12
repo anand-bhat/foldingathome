@@ -677,16 +677,27 @@ function projectSummary() {
         project.projectVal = project.project;
         project.project = projectDetailsLink(project.project);
 
-        // Use Yes/ No instead of true/ false
-        project.beta = project.active ? (project.beta ? 'Yes' : 'No') : '-';
-        project.public = project.active ? (project.public ? 'Yes' : 'No') : '-';
-        project.active = project.active ? 'Yes' : 'No';
+        // Determine project release status
+        let releases = [];
+        if (project.active && project.internal) {
+          releases.push('I');
+        }
+        if (project.active && project.beta) {
+          releases.push('B');
+        }
+        if (project.active && project.public) {
+          releases.push('P');
+        }
+        if (!project.active) {
+          releases.push('-');
+        }
+        project.status = releases.toString();
 
         // Call 'unspecified' causes as 'other'
         project.cause = project.cause === 'unspecified' ? 'other' : project.cause;
 
         // Add GPU or CPU based on core type
-        project.type = (project.type.startsWith('OPENMM')? 'GPU' : 'CPU') + '&nbsp;(' + project.type + ')';
+        project.type = (project.type.startsWith('OPENMM')? 'GPU' : 'CPU') + '&nbsp;(' + project.type.replace('GRO', 'GROMACS') + ')';
 
         // Add locale specific thousand separators
         project.creditVal = project.credit;
@@ -713,11 +724,13 @@ function projectSummary() {
       const visibility = new URLSearchParams(window.location.search).get('visibility');
       let filter = {}
       if (visibility === null || visibility.toLowerCase() === 'active') {
-        filter = {active: ['Yes']};
+        filter = {active: true};
       } else if (visibility.toLowerCase() === 'public') {
-        filter = {public: ['Yes']};
+        filter = {public: true};
       } else if (visibility.toLowerCase() === 'beta') {
-        filter = {beta: ['Yes']};
+        filter = {beta: true};
+      } else if (visibility.toLowerCase() === 'internal') {
+        filter = {internal: true};
       }
 
       $('#projectSummaryTable').bootstrapTable('filterBy', filter);
