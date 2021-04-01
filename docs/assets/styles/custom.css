@@ -24,3 +24,6 @@ body {
 	max-width: 170px;
 	width: auto;
 }
+.bootstrap-table .fixed-table-container .table thead th .th-inner {
+	white-space: normal;
+}
